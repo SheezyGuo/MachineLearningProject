@@ -107,7 +107,7 @@ class BPNetwork(object):
             for i in np.arange(node_num):
                 node = NetworkNode()
                 node.set_type_code(layer_name)
-                node.serial_num(i)
+                node.serial_num = i
                 nodes.append(node)
             self.__layer_nodes[layer_name] = nodes
 
