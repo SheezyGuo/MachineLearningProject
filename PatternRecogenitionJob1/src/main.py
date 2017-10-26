@@ -120,7 +120,6 @@ class BPNetwork(object):
             for inode in np.arange(self._layer_nodes[layer_name].__len__()):
                 node = self._layer_nodes[layer_name][inode]
                 if node.type_code is not _node_type_code["input_layer"]:
-                    node.bias = uniform(-1, 1)
                     node.set_prior_node_list(self._layer_nodes[self._name_of_each_layer[index - 1]])
                     weights = []
                     for i in np.arange(self._node_num_of_each_layer[index - 1]):
@@ -145,7 +144,6 @@ class BPNetwork(object):
             self.init_network()
         else:
             self.init_network(attr_tuple)
-            # self.init_network((6,6,5,4,3,1))
 
     def calculate_output(self, l_input):
         self.fill_input_layer(l_input)
@@ -339,7 +337,14 @@ def regulate(data, cols):
 
 
 def split_sample(data):
-    pass
+    boys = []
+    girls = []
+    for row in data:
+        if row[0].__eq__(1):
+            boys.append(row)
+        else:
+            girls.append(row)
+
 
 
 def plot_bar():
@@ -384,7 +389,7 @@ def main():
     do_pretreatment(data)
     regulate(data, (1, 2))
     bpnet = BPNetwork()
-    train(bpnet, 500, 0.01)
+    train(bpnet, 500, 0.5)
     # train(bpnet)
     for row in data:
         input_value = tuple(row[1:])
