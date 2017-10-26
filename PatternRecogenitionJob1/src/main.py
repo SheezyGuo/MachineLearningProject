@@ -9,14 +9,15 @@ from matplotlib import font_manager
 
 _selected_cols = (1, 3, 4, 6, 7, 8)
 _ncols = _selected_cols.__len__()
+_ninput = _ncols - 1
 _font_path = r"C:\Windows\Fonts\msyh.ttc"
 _fname = "作业数据_2017And2016.xls"
 _node_type_code = {"input_layer": 0, "hidden_layer": 1, "output_layer": 2}
 f = lambda x: 1 / (1 + np.exp(x))
 df = lambda x: f(x) * (1 - f(x))
 yita = 0.08
-MAX_TRIAL = 20000
-THRESHOLD = 1
+MAX_TRIAL = 5000
+THRESHOLD = 0.1
 
 
 class NetworkNode(object):
@@ -26,7 +27,7 @@ class NetworkNode(object):
         self.prior_node_list = []  # 前层节点列表
         self.inferior_node_list = []  # 后层节点列表
         self.weight_list = []  # 前层节点到该节点的权重列表
-        self.weight_increment_list = []  # 暂存
+        self.weight_increment_list = []  # 暂存增量列表
         self.delta = 0  # 该节点的delta指
         self.output = 0  # 所有前层节点的输出乘以权重再求和
 
@@ -95,7 +96,7 @@ class BPNetwork(object):
             self._name_of_each_layer.append("hidden_layer" + str(index))
         self._name_of_each_layer.append("output_layer")
 
-    def init_network(self, node_num_of_each_layer=(_ncols - 1, 5, 4, 3, 2, 1)):
+    def init_network(self, node_num_of_each_layer=(_ninput, 5, 4, 3, 2, 1)):
         self.__nlayers = node_num_of_each_layer.__len__()
         self._node_num_of_each_layer = node_num_of_each_layer
         if self.__nlayers < 2:
@@ -130,9 +131,9 @@ class BPNetwork(object):
     def fill_input_layer(self, l_input):
         if type(l_input) is not tuple:
             return False
-        if l_input.__len__() is not _ncols:
+        if l_input.__len__() is not _ninput:
             return False
-        for i in np.arange(_ncols):
+        for i in np.arange(_ninput):
             self._layer_nodes["input_layer"][i].output = l_input[i]
 
     def __init__(self, attr_tuple=None):
@@ -158,7 +159,7 @@ class BPNetwork(object):
     def calculate_single_sample_error(self, l_input, estimation):
         if type(l_input) is not tuple:
             return False
-        if l_input.__len__() is not _ncols - 1:
+        if l_input.__len__() is not _ninput:
             return False
         if type(estimation) is not tuple:
             return False
@@ -250,11 +251,10 @@ def train(bpnet, max_trial=MAX_TRIAL, threshold=THRESHOLD):
     return bpnet
 
 
-def pridict(bpnet, l_input, output):
+def predict(bpnet, l_input, output):
     bpnet.fill_input_layer(l_input)
     estimation = bpnet.calculate_output(l_input)
     print(str.format("Output:{} Estimation:{}", f(output), estimation))
-    pass
 
 
 def read_excel(fname=_fname):
@@ -272,10 +272,7 @@ def read_excel(fname=_fname):
         for j in _selected_cols:
             row.append(sheet.cell(i, j).value)
         data.append(row)
-        # print(row)
         row = []
-    # for r in data:
-    #     print(r)
     return data
 
 
@@ -360,19 +357,20 @@ def plot_bar():
     plt.show()
 
 
-def plot_decesion_face():
+def plot_decision_plane():
     pass
 
 
 def main():
     bpnet = BPNetwork()
-    train(bpnet, 100, 2)
+    train(bpnet, 100, 0.5)
+    # train(bpnet)
     data = read_excel()
     do_pretreatment(data)
     for row in data:
         input_value = tuple(row[1:])
         estimation_value = tuple(row[-1:])
-        pridict(bpnet, input_value[0], estimation_value[0])
+        predict(bpnet, input_value[0], estimation_value[0])
 
 
 if __name__ == "__main__":
