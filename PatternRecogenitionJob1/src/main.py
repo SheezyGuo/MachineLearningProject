@@ -30,6 +30,7 @@ class NetworkNode(object):
         self.weight_increment_list = []  # 暂存增量列表
         self.delta = 0  # 该节点的delta指
         self.output = 0  # 所有前层节点的输出乘以权重再求和
+        self.omega = 0  # 计算netj中的常数项
 
     def set_type_code(self, type_name):
         if type_name.find("hidden_layer") >= 0:
@@ -75,7 +76,7 @@ class NetworkNode(object):
 class BPNetwork(object):
     _node_num_of_each_layer = ()
     _name_of_each_layer = []
-    __nlayers = 0
+    _nlayers = 0
     _layer_nodes = {}
 
     def get_layer_nodes(self):
@@ -87,23 +88,23 @@ class BPNetwork(object):
         if type(layer_num) is not tuple:
             return False
         self._node_num_of_each_layer = layer_num
-        self.__nlayers = self._node_num_of_each_layer.__len__()
+        self._nlayers = self._node_num_of_each_layer.__len__()
         return True
 
     def set_name_of_each_layer(self):
         self._name_of_each_layer.append("input_layer")
-        for index in np.arange(1, self.__nlayers - 1):
+        for index in np.arange(1, self._nlayers - 1):
             self._name_of_each_layer.append("hidden_layer" + str(index))
         self._name_of_each_layer.append("output_layer")
 
     def init_network(self, node_num_of_each_layer=(_ninput, 5, 4, 3, 2, 1)):
-        self.__nlayers = node_num_of_each_layer.__len__()
+        self._nlayers = node_num_of_each_layer.__len__()
         self._node_num_of_each_layer = node_num_of_each_layer
-        if self.__nlayers < 2:
+        if self._nlayers < 2:
             return False
         self.set_name_of_each_layer()
         self._layer_nodes = {}
-        for index in np.arange(self.__nlayers):
+        for index in np.arange(self._nlayers):
             layer_name = self._name_of_each_layer[index]
             node_num = self._node_num_of_each_layer[index]
             nodes = []
@@ -114,7 +115,7 @@ class BPNetwork(object):
                 nodes.append(node)
             self._layer_nodes[layer_name] = nodes
 
-        for index in np.arange(self.__nlayers):
+        for index in np.arange(self._nlayers):
             layer_name = self._name_of_each_layer[index]
             for inode in np.arange(self._layer_nodes[layer_name].__len__()):
                 node = self._layer_nodes[layer_name][inode]
@@ -156,24 +157,28 @@ class BPNetwork(object):
             output_list.append(self._layer_nodes["output_layer"][index].output)
         return tuple(output_list)
 
-    def calculate_single_sample_error(self, l_input, estimation):
+    def calculate_single_sample_error(self, l_input, output_value):
         if type(l_input) is not tuple:
             return False
         if l_input.__len__() is not _ninput:
             return False
-        if type(estimation) is not tuple:
+        if type(output_value) is not tuple:
             return False
-        if estimation.__len__() is not self._layer_nodes["output_layer"].__len__():
+        if output_value.__len__() is not self._layer_nodes["output_layer"].__len__():
             return False
         self.calculate_output(l_input)
+        foutput_list = []
+        for output in output_value:
+            foutput_list.append(f(output))
+        output_value = tuple(foutput_list)
         error = 0
         for i in np.arange(self._layer_nodes["output_layer"].__len__()):
-            error += (self._layer_nodes["output_layer"][i].output - estimation[i]) ** 2
+            error += (self._layer_nodes["output_layer"][i].output - output_value[i]) ** 2
         error /= 2
         return error
 
     def __bp_calculate_delta(self, estimation):
-        for index in np.arange(self.__nlayers - 1, -1, -1):
+        for index in np.arange(self._nlayers - 1, -1, -1):
             layer_name = self._name_of_each_layer[index]
             node_num = self._node_num_of_each_layer[index]
             for inode in np.arange(node_num):
@@ -184,7 +189,7 @@ class BPNetwork(object):
                     node.update_delta()
 
     def __set_zero(self):
-        for index in np.arange(self.__nlayers - 1, 0, -1):
+        for index in np.arange(self._nlayers - 1, 0, -1):
             layer_name = self._name_of_each_layer[index]
             node_num = self._node_num_of_each_layer[index]
             for inode in np.arange(node_num):
@@ -197,7 +202,7 @@ class BPNetwork(object):
                         node.weight_increment_list[prior_node_index] = 0
 
     def __bp_calculate_weight_increment(self):
-        for index in np.arange(self.__nlayers - 1, 0, -1):
+        for index in np.arange(self._nlayers - 1, 0, -1):
             layer_name = self._name_of_each_layer[index]
             node_num = self._node_num_of_each_layer[index]
             for inode in np.arange(node_num):
@@ -208,7 +213,7 @@ class BPNetwork(object):
                     node.weight_increment_list[prior_node_index] += weight_increment
 
     def calculate_mean_increment(self, sample_num):
-        for index in np.arange(self.__nlayers - 1, 0, -1):
+        for index in np.arange(self._nlayers - 1, 0, -1):
             layer_name = self._name_of_each_layer[index]
             node_num = self._node_num_of_each_layer[index]
             for inode in np.arange(node_num):
@@ -217,7 +222,7 @@ class BPNetwork(object):
                     node.weight_increment_list[i] /= sample_num
 
     def add_weight_increment(self):
-        for index in np.arange(self.__nlayers - 1, 0, -1):
+        for index in np.arange(self._nlayers - 1, 0, -1):
             layer_name = self._name_of_each_layer[index]
             node_num = self._node_num_of_each_layer[index]
             for inode in np.arange(node_num):
@@ -235,14 +240,15 @@ def train(bpnet, max_trial=MAX_TRIAL, threshold=THRESHOLD):
     count = 0
     data = read_excel()
     do_pretreatment(data)
+    regulate(data, (1, 2))
     while count < max_trial:
         error_sum = 0
         for row in data:
             input_value = tuple(row[1:])
-            estimation_value = tuple(row[-1:])
-            error = bpnet.calculate_single_sample_error(input_value, estimation_value)
+            output_value = tuple(row[-1:])
+            error = bpnet.calculate_single_sample_error(input_value, output_value)
             error_sum += error
-            bpnet.bp_adjust(estimation_value)
+            bpnet.bp_adjust(output_value)
         bpnet.calculate_mean_increment(data.__len__())
         bpnet.add_weight_increment()
         if error_sum <= threshold:
@@ -252,9 +258,8 @@ def train(bpnet, max_trial=MAX_TRIAL, threshold=THRESHOLD):
 
 
 def predict(bpnet, l_input, output):
-    bpnet.fill_input_layer(l_input)
     estimation = bpnet.calculate_output(l_input)
-    print(str.format("Output:{} Estimation:{}", f(output), estimation))
+    print(str.format("Real:{} Estimation:{}", output[0], estimation[0]))
 
 
 def read_excel(fname=_fname):
@@ -316,8 +321,19 @@ def do_pretreatment(data):
             data.remove(row)
 
 
-def regulate(data):
-    pass
+def regulate(data, cols):
+    nrow = data.__len__()
+    for col in cols:
+        l_max = -100000
+        l_min = 1000000
+        for i in np.arange(nrow):
+            if data[i][col] > l_max:
+                l_max = data[i][col]
+            if data[i][col] < l_min:
+                l_min = data[i][col]
+        delta = l_max - l_min
+        for i in np.arange(nrow):
+            data[i][col] = (data[i][col] - l_min) / delta
 
 
 def split_sample(data):
@@ -362,15 +378,20 @@ def plot_decision_plane():
 
 
 def main():
-    bpnet = BPNetwork()
-    train(bpnet, 100, 0.5)
-    # train(bpnet)
     data = read_excel()
     do_pretreatment(data)
+    regulate(data, (1, 2))
+    bpnet = BPNetwork()
+    train(bpnet, 1000, 0.01)
+    # train(bpnet)
     for row in data:
         input_value = tuple(row[1:])
-        estimation_value = tuple(row[-1:])
-        predict(bpnet, input_value[0], estimation_value[0])
+        output_value = tuple(row[-1:])
+        foutput_list = []
+        for output in output_value:
+            foutput_list.append(f(output))
+        output_value = tuple(foutput_list)
+        predict(bpnet, input_value, output_value)
 
 
 if __name__ == "__main__":
