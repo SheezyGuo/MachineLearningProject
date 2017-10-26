@@ -13,7 +13,7 @@ _ninput = _ncols - 1
 _font_path = r"C:\Windows\Fonts\msyh.ttc"
 _fname = "作业数据_2017And2016.xls"
 _node_type_code = {"input_layer": 0, "hidden_layer": 1, "output_layer": 2}
-f = lambda x: 1 / (1 + np.exp(x))
+f = lambda x: 1 / (1 + np.exp(-x))
 df = lambda x: f(x) * (1 - f(x))
 yita = 0.08
 MAX_TRIAL = 5000
@@ -28,9 +28,9 @@ class NetworkNode(object):
         self.inferior_node_list = []  # 后层节点列表
         self.weight_list = []  # 前层节点到该节点的权重列表
         self.weight_increment_list = []  # 暂存增量列表
-        self.delta = 0  # 该节点的delta指
+        self.delta = 0  # 该节点的delta值
         self.output = 0  # 所有前层节点的输出乘以权重再求和
-        self.omega = 0  # 计算netj中的常数项
+        # self.bias = 0  # 计算netj中的常数项
 
     def set_type_code(self, type_name):
         if type_name.find("hidden_layer") >= 0:
@@ -120,6 +120,7 @@ class BPNetwork(object):
             for inode in np.arange(self._layer_nodes[layer_name].__len__()):
                 node = self._layer_nodes[layer_name][inode]
                 if node.type_code is not _node_type_code["input_layer"]:
+                    node.bias = uniform(-1, 1)
                     node.set_prior_node_list(self._layer_nodes[self._name_of_each_layer[index - 1]])
                     weights = []
                     for i in np.arange(self._node_num_of_each_layer[index - 1]):
@@ -252,6 +253,7 @@ def train(bpnet, max_trial=MAX_TRIAL, threshold=THRESHOLD):
         bpnet.calculate_mean_increment(data.__len__())
         bpnet.add_weight_increment()
         if error_sum <= threshold:
+            print("Finished before try out" + "#" * 20)
             break
         count += 1
     return bpnet
@@ -382,7 +384,7 @@ def main():
     do_pretreatment(data)
     regulate(data, (1, 2))
     bpnet = BPNetwork()
-    train(bpnet, 1000, 0.01)
+    train(bpnet, 500, 0.01)
     # train(bpnet)
     for row in data:
         input_value = tuple(row[1:])
@@ -392,6 +394,10 @@ def main():
             foutput_list.append(f(output))
         output_value = tuple(foutput_list)
         predict(bpnet, input_value, output_value)
+
+
+# def svm():
+#     from sklearn import
 
 
 if __name__ == "__main__":
