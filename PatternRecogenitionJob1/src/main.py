@@ -9,25 +9,38 @@ from matplotlib import font_manager
 
 _selected_cols = (1, 3, 4, 6, 7, 8)
 _ncols = _selected_cols.__len__()
+_ninput = _ncols - 1
 _font_path = r"C:\Windows\Fonts\msyh.ttc"
 _fname = "作业数据_2017And2016.xls"
 _node_type_code = {"input_layer": 0, "hidden_layer": 1, "output_layer": 2}
-fx = lambda x: 1 / (1 + np.exp(x))
+f = lambda x: 1 / (1 + np.exp(-x))
+df = lambda x: f(x) * (1 - f(x))
+yita = 0.08
+MAX_TRIAL = 5000
+THRESHOLD = 0.1
 
 
 class NetworkNode(object):
     def __init__(self):
         self.type_code = -1  # 节点类型code
+        self.serial_num = 0  # 节点序列号
         self.prior_node_list = []  # 前层节点列表
         self.inferior_node_list = []  # 后层节点列表
         self.weight_list = []  # 前层节点到该节点的权重列表
-        self.delta = 0  # 该节点的delta指
+        self.weight_increment_list = []  # 暂存增量列表
+        self.delta = 0  # 该节点的delta值
         self.output = 0  # 所有前层节点的输出乘以权重再求和
+        # self.bias = 0  # 计算netj中的常数项
 
     def set_type_code(self, type_name):
+        if type_name.find("hidden_layer") >= 0:
+            type_name = "hidden_layer"
         if type_name not in _node_type_code.keys():
             return False
         self.type_code = _node_type_code[type_name]
+
+    def set_serial_num(self, serial_num):
+        self.serial_num = serial_num
 
     def set_prior_node_list(self, prior_node_list):
         self.prior_node_list = prior_node_list
@@ -35,70 +48,94 @@ class NetworkNode(object):
     def set_inferior_node_list(self, inferior_node_list):
         self.inferior_node_list = inferior_node_list
 
-    def update_delta(self, delta):
-        self.delta = delta
+    def update_delta(self, output=None):
+        if self.type_code is _node_type_code["output_layer"]:
+            self.delta = -(output - self.output) * df(self.output)
+        else:
+            l_sum = 0
+            for inode in np.arange(self.inferior_node_list.__len__()):
+                node = self.inferior_node_list[inode]
+                inferior_delta = node.delta
+                inferior_weight = node.weight_list[self.serial_num]
+                l_sum += inferior_delta * inferior_weight
+            self.delta = l_sum * df(self.output)
 
     def update_weight_list(self, weight_list):
-        if type(weight_list) is not list or weight_list.__len__() is not self.weight_list.__len__():
+        if type(weight_list) is not list:
             return False
         self.weight_list = weight_list
 
-    def update_output(self, output):
+    def update_output(self):
+        l_sum = 0
+        for i in np.arange(self.prior_node_list.__len__()):
+            l_sum += self.prior_node_list[i].output * self.weight_list[i]
+        output = f(l_sum)
         self.output = output
 
 
 class BPNetwork(object):
-    __node_num_of_each_layer = ()
-    __name_of_each_layer = []
-    __nlayers = 0
-    __layer_nodes = {}
+    _node_num_of_each_layer = ()
+    _name_of_each_layer = []
+    _nlayers = 0
+    _layer_nodes = {}
 
     def get_layer_nodes(self):
-        return self.__layer_nodes
+        return self._layer_nodes
 
     def set_node_num_of_each_layer(self, layer_num):
         if layer_num is None:
             return False
         if type(layer_num) is not tuple:
             return False
-        self.__node_num_of_each_layer = layer_num
-        self.__nlayers = self.__node_num_of_each_layer.__len__()
+        self._node_num_of_each_layer = layer_num
+        self._nlayers = self._node_num_of_each_layer.__len__()
         return True
 
     def set_name_of_each_layer(self):
-        self.__name_of_each_layer.append("input_layer")
-        for index in np.arange(1, self.__nlayers - 1):
-            self.__name_of_each_layer.append("hidden_layer" + str(index))
-        self.__name_of_each_layer.append("output_layer")
+        self._name_of_each_layer.append("input_layer")
+        for index in np.arange(1, self._nlayers - 1):
+            self._name_of_each_layer.append("hidden_layer" + str(index))
+        self._name_of_each_layer.append("output_layer")
 
-    def init_network(self, node_num_of_each_layer=(_ncols, 5, 4, 3, 2, 1)):
-        self.__nlayers = node_num_of_each_layer.__len__()
-        self.__node_num_of_each_layer = node_num_of_each_layer
-        if self.__nlayers < 2:
+    def init_network(self, node_num_of_each_layer=(_ninput, 5, 4, 3, 2, 1)):
+        self._nlayers = node_num_of_each_layer.__len__()
+        self._node_num_of_each_layer = node_num_of_each_layer
+        if self._nlayers < 2:
             return False
         self.set_name_of_each_layer()
-        self.__layer_nodes = {}
-        for index in np.arange(self.__nlayers):
-            layer_name = self.__name_of_each_layer[index]
-            node_num = self.__node_num_of_each_layer[index]
+        self._layer_nodes = {}
+        for index in np.arange(self._nlayers):
+            layer_name = self._name_of_each_layer[index]
+            node_num = self._node_num_of_each_layer[index]
             nodes = []
             for i in np.arange(node_num):
                 node = NetworkNode()
                 node.set_type_code(layer_name)
+                node.serial_num = i
                 nodes.append(node)
-            self.__layer_nodes[layer_name] = nodes
+            self._layer_nodes[layer_name] = nodes
 
-        for index in np.arange(self.__nlayers):
-            layer_name = self.__name_of_each_layer[index]
-            for inode in self.__layer_nodes[layer_name]:
-                if inode.type_code is not _node_type_code["input_layer"]:
-                    inode.set_prior_node_list(self.__layer_nodes[self.__name_of_each_layer[index - 1]])
+        for index in np.arange(self._nlayers):
+            layer_name = self._name_of_each_layer[index]
+            for inode in np.arange(self._layer_nodes[layer_name].__len__()):
+                node = self._layer_nodes[layer_name][inode]
+                if node.type_code is not _node_type_code["input_layer"]:
+                    node.set_prior_node_list(self._layer_nodes[self._name_of_each_layer[index - 1]])
                     weights = []
-                    for i in np.arange(self.__node_num_of_each_layer[index]):
+                    for i in np.arange(self._node_num_of_each_layer[index - 1]):
                         weights.append(uniform(-1, 1))
-                    inode.update_weight_list(weights)
-                if inode.type_code is not _node_type_code["output_layer"]:
-                    inode.set_inferior_node_list(self.__layer_nodes[self.__name_of_each_layer[index + 1]])
+                    node.update_weight_list(weights)
+                if node.type_code is not _node_type_code["output_layer"]:
+                    node.set_inferior_node_list(self._layer_nodes[self._name_of_each_layer[index + 1]])
+        self.__set_zero()
+
+    def fill_input_layer(self, l_input):
+        if type(l_input) is not tuple:
+            return False
+        if l_input.__len__() is not _ninput:
+            return False
+        for i in np.arange(_ninput):
+            self._layer_nodes["input_layer"][i].output = l_input[i]
 
     def __init__(self, attr_tuple=None):
         if type(attr_tuple) is not tuple:
@@ -107,7 +144,130 @@ class BPNetwork(object):
             self.init_network()
         else:
             self.init_network(attr_tuple)
-            # self.init_network((6,6,5,4,3,1))
+
+    def calculate_output(self, l_input):
+        self.fill_input_layer(l_input)
+        for layer_name in self._name_of_each_layer[1:]:
+            for inode in np.arange(self._layer_nodes[layer_name].__len__()):
+                node = self._layer_nodes[layer_name][inode]
+                node.update_output()
+        output_list = []
+        for index in np.arange(self._layer_nodes["output_layer"].__len__()):
+            output_list.append(self._layer_nodes["output_layer"][index].output)
+        return tuple(output_list)
+
+    def calculate_single_sample_error(self, l_input, output_value):
+        if type(l_input) is not tuple:
+            return False
+        if l_input.__len__() is not _ninput:
+            return False
+        if type(output_value) is not tuple:
+            return False
+        if output_value.__len__() is not self._layer_nodes["output_layer"].__len__():
+            return False
+        self.calculate_output(l_input)
+        error = 0
+        for i in np.arange(self._layer_nodes["output_layer"].__len__()):
+            error += (self._layer_nodes["output_layer"][i].output - output_value[i]) ** 2
+        error /= 2
+        return error
+
+    def __bp_calculate_delta(self, output_value):
+        for index in np.arange(self._nlayers - 1, -1, -1):
+            layer_name = self._name_of_each_layer[index]
+            node_num = self._node_num_of_each_layer[index]
+            for inode in np.arange(node_num):
+                node = self._layer_nodes[layer_name][inode]
+                if layer_name is "output_layer":
+                    node.update_delta(output_value[inode])
+                else:
+                    node.update_delta()
+
+    def __set_zero(self):
+        for index in np.arange(self._nlayers - 1, 0, -1):
+            layer_name = self._name_of_each_layer[index]
+            node_num = self._node_num_of_each_layer[index]
+            for inode in np.arange(node_num):
+                node = self._layer_nodes[layer_name][inode]
+                if node.weight_increment_list.__eq__([]):
+                    for prior_node_index in np.arange(node.prior_node_list.__len__()):
+                        node.weight_increment_list.append(0)
+                else:
+                    for prior_node_index in np.arange(node.prior_node_list.__len__()):
+                        node.weight_increment_list[prior_node_index] = 0
+
+    # 单样本修改
+    def __bp_add_weight_increment(self):
+        for index in np.arange(self._nlayers - 1, 0, -1):
+            layer_name = self._name_of_each_layer[index]
+            node_num = self._node_num_of_each_layer[index]
+            for inode in np.arange(node_num):
+                node = self._layer_nodes[layer_name][inode]
+                for prior_node_index in np.arange(node.prior_node_list.__len__()):
+                    prior_node = node.prior_node_list[prior_node_index]
+                    weight_increment = -1 * yita * node.delta * prior_node.output
+                    node.weight_list[prior_node_index] += weight_increment
+
+    # 整体修改，做出来结果预测结果是一样的，可能权值的改变量计算有问题，或者没用上偏移量使得权值表达的直线都经过原点导致效果不好
+    def __bp_calculate_weight_increment(self):
+        for index in np.arange(self._nlayers - 1, 0, -1):
+            layer_name = self._name_of_each_layer[index]
+            node_num = self._node_num_of_each_layer[index]
+            for inode in np.arange(node_num):
+                node = self._layer_nodes[layer_name][inode]
+                for prior_node_index in np.arange(node.prior_node_list.__len__()):
+                    prior_node = node.prior_node_list[prior_node_index]
+                    weight_increment = -1 * yita * node.delta * prior_node.output
+                    node.weight_increment_list[prior_node_index] += weight_increment
+
+    def calculate_mean_increment(self, sample_num):
+        for index in np.arange(self._nlayers - 1, 0, -1):
+            layer_name = self._name_of_each_layer[index]
+            node_num = self._node_num_of_each_layer[index]
+            for inode in np.arange(node_num):
+                node = self._layer_nodes[layer_name][inode]
+                for i in np.arange(node.weight_increment_list.__len__()):
+                    node.weight_increment_list[i] /= sample_num
+
+    def add_weight_increment(self):
+        for index in np.arange(self._nlayers - 1, 0, -1):
+            layer_name = self._name_of_each_layer[index]
+            node_num = self._node_num_of_each_layer[index]
+            for inode in np.arange(node_num):
+                node = self._layer_nodes[layer_name][inode]
+                for i in np.arange(node.weight_list.__len__()):
+                    node.weight_list[i] += node.weight_increment_list[i]
+        self.__set_zero()
+
+    def bp_adjust(self, output_value):
+        self.__bp_calculate_delta(output_value)
+        self.__bp_add_weight_increment()
+
+
+def train(bpnet, max_trial=MAX_TRIAL, threshold=THRESHOLD):
+    count = 0
+    data = read_excel()
+    do_pretreatment(data)
+    regulate(data, (1, 2))
+    while count < max_trial:
+        error_sum = 0
+        for row in data:
+            input_value = tuple(row[1:])
+            output_value = tuple(row[-1:])
+            output_value = tuple([f(x) for x in output_value])
+            error = bpnet.calculate_single_sample_error(input_value, output_value)
+            error_sum += error
+            bpnet.bp_adjust(output_value)
+        if error_sum <= threshold:
+            print("Finished before try out" + "#" * 20)
+            break
+        count += 1
+    return bpnet
+
+
+def predict(bpnet, l_input, output):
+    estimation = bpnet.calculate_output(l_input)
+    print(str.format("Real:{} Estimation:{}", output[0], estimation[0]))
 
 
 def read_excel(fname=_fname):
@@ -125,10 +285,7 @@ def read_excel(fname=_fname):
         for j in _selected_cols:
             row.append(sheet.cell(i, j).value)
         data.append(row)
-        # print(row)
         row = []
-    # for r in data:
-    #     print(r)
     return data
 
 
@@ -172,12 +329,29 @@ def do_pretreatment(data):
             data.remove(row)
 
 
-def regulate(data):
-    pass
+def regulate(data, cols):
+    nrow = data.__len__()
+    for col in cols:
+        l_max = -100000
+        l_min = 1000000
+        for i in np.arange(nrow):
+            if data[i][col] > l_max:
+                l_max = data[i][col]
+            if data[i][col] < l_min:
+                l_min = data[i][col]
+        delta = l_max - l_min
+        for i in np.arange(nrow):
+            data[i][col] = (data[i][col] - l_min) / delta
 
 
 def split_sample(data):
-    pass
+    boys = []
+    girls = []
+    for row in data:
+        if row[0].__eq__(1):
+            boys.append(row)
+        else:
+            girls.append(row)
 
 
 def plot_bar():
@@ -213,18 +387,26 @@ def plot_bar():
     plt.show()
 
 
-def plot_decesion_face():
+def plot_decision_plane():
     pass
 
 
 def main():
-    # data = read_excel()
-    # do_pretreatment(data)
-    # for row in data:
-    #     print(row)
+    data = read_excel()
+    do_pretreatment(data)
+    regulate(data, (1, 2))
     bpnet = BPNetwork()
-    nodes = bpnet.get_layer_nodes()
-    print(nodes["input_layer"][0].weight_list)
+    train(bpnet, 500, 0.01)
+    # train(bpnet)
+    for row in data:
+        input_value = tuple(row[1:])
+        output_value = tuple(row[-1:])
+        output_value = tuple([f(x) for x in output_value])
+        predict(bpnet, input_value, output_value)
+
+
+# def svm():
+#     from sklearn import
 
 
 if __name__ == "__main__":
