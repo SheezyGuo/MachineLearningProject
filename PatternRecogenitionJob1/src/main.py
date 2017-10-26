@@ -48,9 +48,9 @@ class NetworkNode(object):
     def set_inferior_node_list(self, inferior_node_list):
         self.inferior_node_list = inferior_node_list
 
-    def update_delta(self, estimation_k=None):
+    def update_delta(self, output=None):
         if self.type_code is _node_type_code["output_layer"]:
-            self.delta = -(estimation_k - self.output) * df(self.output)
+            self.delta = -(output - self.output) * df(self.output)
         else:
             l_sum = 0
             for inode in np.arange(self.inferior_node_list.__len__()):
@@ -166,24 +166,20 @@ class BPNetwork(object):
         if output_value.__len__() is not self._layer_nodes["output_layer"].__len__():
             return False
         self.calculate_output(l_input)
-        foutput_list = []
-        for output in output_value:
-            foutput_list.append(f(output))
-        output_value = tuple(foutput_list)
         error = 0
         for i in np.arange(self._layer_nodes["output_layer"].__len__()):
             error += (self._layer_nodes["output_layer"][i].output - output_value[i]) ** 2
         error /= 2
         return error
 
-    def __bp_calculate_delta(self, estimation):
+    def __bp_calculate_delta(self, output_value):
         for index in np.arange(self._nlayers - 1, -1, -1):
             layer_name = self._name_of_each_layer[index]
             node_num = self._node_num_of_each_layer[index]
             for inode in np.arange(node_num):
                 node = self._layer_nodes[layer_name][inode]
                 if layer_name is "output_layer":
-                    node.update_delta(estimation[inode])
+                    node.update_delta(output_value[inode])
                 else:
                     node.update_delta()
 
@@ -200,6 +196,19 @@ class BPNetwork(object):
                     for prior_node_index in np.arange(node.prior_node_list.__len__()):
                         node.weight_increment_list[prior_node_index] = 0
 
+    # 单样本修改
+    def __bp_add_weight_increment(self):
+        for index in np.arange(self._nlayers - 1, 0, -1):
+            layer_name = self._name_of_each_layer[index]
+            node_num = self._node_num_of_each_layer[index]
+            for inode in np.arange(node_num):
+                node = self._layer_nodes[layer_name][inode]
+                for prior_node_index in np.arange(node.prior_node_list.__len__()):
+                    prior_node = node.prior_node_list[prior_node_index]
+                    weight_increment = -1 * yita * node.delta * prior_node.output
+                    node.weight_list[prior_node_index] += weight_increment
+
+    # 整体修改，做出来结果预测结果是一样的，可能权值的改变量计算有问题，或者没用上偏移量使得权值表达的直线都经过原点导致效果不好
     def __bp_calculate_weight_increment(self):
         for index in np.arange(self._nlayers - 1, 0, -1):
             layer_name = self._name_of_each_layer[index]
@@ -230,9 +239,9 @@ class BPNetwork(object):
                     node.weight_list[i] += node.weight_increment_list[i]
         self.__set_zero()
 
-    def bp_adjust(self, estimation):
-        self.__bp_calculate_delta(estimation)
-        self.__bp_calculate_weight_increment()
+    def bp_adjust(self, output_value):
+        self.__bp_calculate_delta(output_value)
+        self.__bp_add_weight_increment()
 
 
 def train(bpnet, max_trial=MAX_TRIAL, threshold=THRESHOLD):
@@ -245,11 +254,10 @@ def train(bpnet, max_trial=MAX_TRIAL, threshold=THRESHOLD):
         for row in data:
             input_value = tuple(row[1:])
             output_value = tuple(row[-1:])
+            output_value = tuple([f(x) for x in output_value])
             error = bpnet.calculate_single_sample_error(input_value, output_value)
             error_sum += error
             bpnet.bp_adjust(output_value)
-        bpnet.calculate_mean_increment(data.__len__())
-        bpnet.add_weight_increment()
         if error_sum <= threshold:
             print("Finished before try out" + "#" * 20)
             break
@@ -346,7 +354,6 @@ def split_sample(data):
             girls.append(row)
 
 
-
 def plot_bar():
     myfont = font_manager.FontProperties(fname=_font_path)
     data = read_excel()
@@ -389,15 +396,12 @@ def main():
     do_pretreatment(data)
     regulate(data, (1, 2))
     bpnet = BPNetwork()
-    train(bpnet, 500, 0.5)
+    train(bpnet, 500, 0.01)
     # train(bpnet)
     for row in data:
         input_value = tuple(row[1:])
         output_value = tuple(row[-1:])
-        foutput_list = []
-        for output in output_value:
-            foutput_list.append(f(output))
-        output_value = tuple(foutput_list)
+        output_value = tuple([f(x) for x in output_value])
         predict(bpnet, input_value, output_value)
 
 
