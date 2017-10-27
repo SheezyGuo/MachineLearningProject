@@ -250,16 +250,18 @@ def train(bpnet, max_trial=MAX_TRIAL, threshold=THRESHOLD):
     do_pretreatment(data)
     regulate(data, (1, 2))
     while count < max_trial:
-        error_sum = 0
+        IS_OK = True
         for row in data:
             input_value = tuple(row[1:])
             output_value = tuple(row[-1:])
             output_value = tuple([f(x) for x in output_value])
             error = bpnet.calculate_single_sample_error(input_value, output_value)
-            error_sum += error
+            print(error)
+            if error <= threshold:
+                continue
             bpnet.bp_adjust(output_value)
-        if error_sum <= threshold:
-            print("Finished before try out" + "#" * 20)
+            IS_OK = False
+        if IS_OK.__eq__(True):
             break
         count += 1
     return bpnet
@@ -396,7 +398,7 @@ def main():
     do_pretreatment(data)
     regulate(data, (1, 2))
     bpnet = BPNetwork()
-    train(bpnet, 500, 0.01)
+    train(bpnet, 500, 5e-4)
     # train(bpnet)
     for row in data:
         input_value = tuple(row[1:])
