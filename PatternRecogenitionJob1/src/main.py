@@ -15,6 +15,7 @@ _fname = "作业数据_2017And2016.xls"
 _node_type_code = {"input_layer": 0, "hidden_layer": 1, "output_layer": 2}
 f = lambda x: 1 / (1 + np.exp(-x))
 df = lambda x: x * (1 - x)
+rf = lambda x: np.log(x) - np.log(1 - x)
 yita = 0.1
 MAX_TRIAL = 5000
 THRESHOLD = 0.1
@@ -244,11 +245,9 @@ class BPNetwork(object):
         self.__bp_add_weight_increment()
 
 
-def train(bpnet, max_trial=MAX_TRIAL, threshold=THRESHOLD):
+def train(bpnet, train_set, max_trial=MAX_TRIAL, threshold=THRESHOLD):
     count = 0
-    data = read_excel()
-    do_pretreatment(data)
-    regulate(data, (1, 2))
+    data = train_set
     while count < max_trial:
         IS_OK = True
         for row in data:
@@ -269,7 +268,14 @@ def train(bpnet, max_trial=MAX_TRIAL, threshold=THRESHOLD):
 
 def predict(bpnet, l_input, output):
     estimation = bpnet.calculate_output(l_input)
-    print(str.format("Real:{} Estimation:{}", output[0], estimation[0]))
+    print(str.format("Real:{} Estimation:{}", output[0], estimation[0]), end=" ")
+    real = np.round(rf(output[0]))
+    estimation = np.round(rf(estimation[0]))
+    print(str.format("Real:{} Estimation:{}", real, estimation))
+    if real == estimation:
+        return True
+    else:
+        return False
 
 
 def read_excel(fname=_fname):
@@ -346,7 +352,10 @@ def regulate(data, cols):
             data[i][col] = (data[i][col] - l_min) / delta
 
 
-def split_sample(data):
+def split_sample(data, ratio):
+    if ratio <= 0 or ratio >= 1:
+        return None
+    from random import randint
     boys = []
     girls = []
     for row in data:
@@ -354,6 +363,23 @@ def split_sample(data):
             boys.append(row)
         else:
             girls.append(row)
+    nboys = len(boys)
+    ngirls = len(girls)
+    n = int(np.round(nboys * ratio))
+    m = int(np.round(ngirls * ratio))
+    train_set = []
+    test_set = []
+    for i in range(n):
+        index = randint(0, len(boys) - 1)
+        train_set.append(boys[index])
+        boys.remove(boys[index])
+    for i in range(m):
+        index = randint(0, len(girls) - 1)
+        train_set.append(girls[index])
+        girls.remove(girls[index])
+    test_set.extend(boys)
+    test_set.extend(girls)
+    return train_set, test_set
 
 
 def plot_bar():
@@ -398,12 +424,15 @@ def main():
     do_pretreatment(data)
     regulate(data, (1, 2))
     bpnet = BPNetwork((5, 4, 3, 2, 1))
-    train(bpnet, 500, 5e-4)
-    # train(bpnet)
-    for row in data:
+    train_set, test_set = split_sample(data, 2 / 3)
+    train(bpnet, train_set, 500, 5e-4)
+    count = 0
+    for row in test_set:
         input_value = tuple(row[1:])
         output_value = tuple([f(x) for x in row[-1:]])
-        predict(bpnet, input_value, output_value)
+        if predict(bpnet, input_value, output_value):
+            count += 1
+    print(count / len(test_set))
 
 
 # def svm():
