@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xlrd
 from matplotlib import font_manager
+from sklearn.metrics import roc_auc_score
 
 _selected_cols = (1, 3, 4, 6, 7, 8)
 _ncols = _selected_cols.__len__()
@@ -252,7 +253,7 @@ def train(bpnet, train_set, max_trial=MAX_TRIAL, threshold=THRESHOLD):
         IS_OK = True
         for row in data:
             input_value = tuple(row[1:])
-            output_value = tuple(row[-1:])
+            output_value = tuple(row[:1])
             output_value = tuple([f(x) for x in output_value])
             error = bpnet.calculate_single_sample_error(input_value, output_value)
             if error <= threshold:
@@ -419,28 +420,35 @@ def plot_decision_plane():
     pass
 
 
-def main():
+def BPNetwork():
     data = read_excel()
     do_pretreatment(data)
     regulate(data, (1, 2))
-    bpnet = BPNetwork((5, 4, 3, 2, 1))
+    bpnet = BPNetwork((5, 3, 1))
     train_set, test_set = split_sample(data, 2 / 3)
     train(bpnet, train_set, 500, 5e-4)
     count = 0
     TP, FN, FP, TN = 0, 0, 0, 0
+    y_true = []
+    y_scores = []
     for row in test_set:
         input_value = tuple(row[1:])
-        output_value = tuple([f(x) for x in row[-1:]])
-        origin_result = row[-1:][0]
+        output_value = tuple([f(x) for x in row[:1]])
+        origin_result = row[:1][0]
+        y_true.append(origin_result)
         result = predict(bpnet, input_value, output_value)
         if origin_result == 1 and result:
             TP += 1
+            y_scores.append(1)
         elif origin_result == 1 and not result:
             FN += 1
+            y_scores.append(0)
         elif origin_result == 0 and result:
             TN += 1
+            y_scores.append(0)
         elif origin_result == 0 and not result:
             FP += 1
+            y_scores.append(1)
         if result:
             count += 1
     if TP + FN:
@@ -451,14 +459,35 @@ def main():
         SP = TN / (TN + FP)
     else:
         SP = 0
+
+    auc = roc_auc_score(y_true, y_scores)
     print("SE:", SE)
     print("SP:", SP)
     print("Accuracy:", count / len(test_set))
+    print('AUC:', auc)
 
 
-# def svm():
-#     from sklearn import
+def svm():
+    from sklearn.svm import NuSVC
+    data = read_excel()
+    do_pretreatment(data)
+    regulate(data, (1, 2))
+    train_set, test_set = split_sample(data, 2 / 3)
+    X1 = []
+    Y1 = []
+    for row in train_set:
+        X1.append(row[1:])
+        Y1.append(row[0])
+    clf = NuSVC()
+    clf.fit(X1, Y1)
+    X2 = []
+    Y2 = []
+    for row in test_set:
+        estimation = clf.predict(row[1:])
+        real = row[0]
+        print("Real:{} Estimation:{}", real, estimation)
 
 
 if __name__ == "__main__":
-    main()
+    # BPNetwork()
+    svm()
