@@ -268,7 +268,7 @@ def train(bpnet, train_set, max_trial=MAX_TRIAL, threshold=THRESHOLD):
 
 def predict(bpnet, l_input, output):
     estimation = bpnet.calculate_output(l_input)
-    print(str.format("Real:{} Estimation:{}", output[0], estimation[0]), end=" ")
+    # print(str.format("Real:{} Estimation:{}", output[0], estimation[0]), end=" ")
     real = np.round(rf(output[0]))
     estimation = np.round(rf(estimation[0]))
     print(str.format("Real:{} Estimation:{}", real, estimation))
@@ -427,12 +427,33 @@ def main():
     train_set, test_set = split_sample(data, 2 / 3)
     train(bpnet, train_set, 500, 5e-4)
     count = 0
+    TP, FN, FP, TN = 0, 0, 0, 0
     for row in test_set:
         input_value = tuple(row[1:])
         output_value = tuple([f(x) for x in row[-1:]])
-        if predict(bpnet, input_value, output_value):
+        origin_result = row[-1:][0]
+        result = predict(bpnet, input_value, output_value)
+        if origin_result == 1 and result:
+            TP += 1
+        elif origin_result == 1 and not result:
+            FN += 1
+        elif origin_result == 0 and result:
+            TN += 1
+        elif origin_result == 0 and not result:
+            FP += 1
+        if result:
             count += 1
-    print(count / len(test_set))
+    if TP + FN:
+        SE = TP / (TP + FN)
+    else:
+        SE = 0
+    if TN + FP:
+        SP = TN / (TN + FP)
+    else:
+        SP = 0
+    print("SE:", SE)
+    print("SP:", SP)
+    print("Accuracy:", count / len(test_set))
 
 
 # def svm():
