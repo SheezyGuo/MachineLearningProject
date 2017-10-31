@@ -424,7 +424,7 @@ def BP():
     data = read_excel()
     do_pretreatment(data)
     regulate(data, (1, 2))
-    bpnet = BPNetwork((5, 5, 1))
+    bpnet = BPNetwork((5, 4, 3, 2, 1))
     train_set, test_set = split_sample(data, 2 / 3)
     train(bpnet, train_set, 500, 5e-4)
     count = 0
@@ -478,7 +478,7 @@ def svm():
     for row in train_set:
         X1.append(row[1:])
         Y1.append(row[0])
-    clf = SVC()
+    clf = SVC(kernel='poly')
     clf.fit(X1, Y1)
     original = []
     output = []
@@ -562,6 +562,6 @@ def decisiontree():
 
 
 if __name__ == "__main__":
-    BP()
+    # BP()
     # svm()
-    # decisiontree()
+    decisiontree()
