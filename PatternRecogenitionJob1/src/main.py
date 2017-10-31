@@ -14,8 +14,8 @@ _font_path = r"C:\Windows\Fonts\msyh.ttc"
 _fname = "作业数据_2017And2016.xls"
 _node_type_code = {"input_layer": 0, "hidden_layer": 1, "output_layer": 2}
 f = lambda x: 1 / (1 + np.exp(-x))
-df = lambda x: f(x) * (1 - f(x))
-yita = 0.08
+df = lambda x: x * (1 - x)
+yita = 0.1
 MAX_TRIAL = 5000
 THRESHOLD = 0.1
 
@@ -49,8 +49,8 @@ class NetworkNode(object):
         self.inferior_node_list = inferior_node_list
 
     def update_delta(self, output=None):
-        if self.type_code is _node_type_code["output_layer"]:
-            self.delta = -(output - self.output) * df(self.output)
+        if output:
+            self.delta = (self.output - output) * df(self.output)
         else:
             l_sum = 0
             for inode in np.arange(self.inferior_node_list.__len__()):
@@ -61,7 +61,7 @@ class NetworkNode(object):
             self.delta = l_sum * df(self.output)
 
     def update_weight_list(self, weight_list):
-        if type(weight_list) is not list:
+        if type(weight_list) != list:
             return False
         self.weight_list = weight_list
 
@@ -85,7 +85,7 @@ class BPNetwork(object):
     def set_node_num_of_each_layer(self, layer_num):
         if layer_num is None:
             return False
-        if type(layer_num) is not tuple:
+        if type(layer_num) != tuple:
             return False
         self._node_num_of_each_layer = layer_num
         self._nlayers = self._node_num_of_each_layer.__len__()
@@ -119,26 +119,26 @@ class BPNetwork(object):
             layer_name = self._name_of_each_layer[index]
             for inode in np.arange(self._layer_nodes[layer_name].__len__()):
                 node = self._layer_nodes[layer_name][inode]
-                if node.type_code is not _node_type_code["input_layer"]:
+                if node.type_code != _node_type_code["input_layer"]:
                     node.set_prior_node_list(self._layer_nodes[self._name_of_each_layer[index - 1]])
                     weights = []
                     for i in np.arange(self._node_num_of_each_layer[index - 1]):
                         weights.append(uniform(-1, 1))
                     node.update_weight_list(weights)
-                if node.type_code is not _node_type_code["output_layer"]:
+                if node.type_code != _node_type_code["output_layer"]:
                     node.set_inferior_node_list(self._layer_nodes[self._name_of_each_layer[index + 1]])
         self.__set_zero()
 
     def fill_input_layer(self, l_input):
-        if type(l_input) is not tuple:
+        if type(l_input) != tuple:
             return False
-        if l_input.__len__() is not _ninput:
+        if l_input.__len__() != _ninput:
             return False
         for i in np.arange(_ninput):
             self._layer_nodes["input_layer"][i].output = l_input[i]
 
     def __init__(self, attr_tuple=None):
-        if type(attr_tuple) is not tuple:
+        if type(attr_tuple) != tuple:
             pass
         if attr_tuple is None:
             self.init_network()
@@ -157,13 +157,13 @@ class BPNetwork(object):
         return tuple(output_list)
 
     def calculate_single_sample_error(self, l_input, output_value):
-        if type(l_input) is not tuple:
+        if type(l_input) != tuple:
             return False
-        if l_input.__len__() is not _ninput:
+        if l_input.__len__() != _ninput:
             return False
-        if type(output_value) is not tuple:
+        if type(output_value) != tuple:
             return False
-        if output_value.__len__() is not self._layer_nodes["output_layer"].__len__():
+        if output_value.__len__() != self._layer_nodes["output_layer"].__len__():
             return False
         self.calculate_output(l_input)
         error = 0
@@ -173,12 +173,12 @@ class BPNetwork(object):
         return error
 
     def __bp_calculate_delta(self, output_value):
-        for index in np.arange(self._nlayers - 1, -1, -1):
+        for index in np.arange(self._nlayers - 1, 0, -1):
             layer_name = self._name_of_each_layer[index]
             node_num = self._node_num_of_each_layer[index]
             for inode in np.arange(node_num):
                 node = self._layer_nodes[layer_name][inode]
-                if layer_name is "output_layer":
+                if layer_name == "output_layer":
                     node.update_delta(output_value[inode])
                 else:
                     node.update_delta()
@@ -189,7 +189,7 @@ class BPNetwork(object):
             node_num = self._node_num_of_each_layer[index]
             for inode in np.arange(node_num):
                 node = self._layer_nodes[layer_name][inode]
-                if node.weight_increment_list.__eq__([]):
+                if not node.weight_increment_list:
                     for prior_node_index in np.arange(node.prior_node_list.__len__()):
                         node.weight_increment_list.append(0)
                 else:
@@ -256,12 +256,12 @@ def train(bpnet, max_trial=MAX_TRIAL, threshold=THRESHOLD):
             output_value = tuple(row[-1:])
             output_value = tuple([f(x) for x in output_value])
             error = bpnet.calculate_single_sample_error(input_value, output_value)
-            print(error)
             if error <= threshold:
                 continue
             bpnet.bp_adjust(output_value)
             IS_OK = False
-        if IS_OK.__eq__(True):
+        if IS_OK:
+            print("*" * 80)
             break
         count += 1
     return bpnet
@@ -313,12 +313,12 @@ def plot_test():
 def check_row(row, ncols=_ncols):
     if row is None:
         return False
-    if type(row) is not list:
+    if type(row) != list:
         return False
-    if row.__len__() is not ncols:
+    if row.__len__() != ncols:
         return False
     for item in row:
-        if item is None or item is '':
+        if item is None or item == '':
             return False
     return True
 
@@ -397,13 +397,12 @@ def main():
     data = read_excel()
     do_pretreatment(data)
     regulate(data, (1, 2))
-    bpnet = BPNetwork()
+    bpnet = BPNetwork((5, 4, 3, 2, 1))
     train(bpnet, 500, 5e-4)
     # train(bpnet)
     for row in data:
         input_value = tuple(row[1:])
-        output_value = tuple(row[-1:])
-        output_value = tuple([f(x) for x in output_value])
+        output_value = tuple([f(x) for x in row[-1:]])
         predict(bpnet, input_value, output_value)
 
 
