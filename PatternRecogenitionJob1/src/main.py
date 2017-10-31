@@ -272,7 +272,7 @@ def predict(bpnet, l_input, output):
     # print(str.format("Real:{} Estimation:{}", output[0], estimation[0]), end=" ")
     real = np.round(rf(output[0]))
     estimation = np.round(rf(estimation[0]))
-    print(str.format("Real:{} Estimation:{}", real, estimation))
+    # print(str.format("Real:{} Estimation:{}", real, estimation))
     if real == estimation:
         return True
     else:
@@ -420,11 +420,11 @@ def plot_decision_plane():
     pass
 
 
-def BPNetwork():
+def BP():
     data = read_excel()
     do_pretreatment(data)
     regulate(data, (1, 2))
-    bpnet = BPNetwork((5, 3, 1))
+    bpnet = BPNetwork((5, 5, 1))
     train_set, test_set = split_sample(data, 2 / 3)
     train(bpnet, train_set, 500, 5e-4)
     count = 0
@@ -468,7 +468,7 @@ def BPNetwork():
 
 
 def svm():
-    from sklearn.svm import NuSVC
+    from sklearn.svm import SVC
     data = read_excel()
     do_pretreatment(data)
     regulate(data, (1, 2))
@@ -478,16 +478,90 @@ def svm():
     for row in train_set:
         X1.append(row[1:])
         Y1.append(row[0])
-    clf = NuSVC()
+    clf = SVC()
     clf.fit(X1, Y1)
-    X2 = []
-    Y2 = []
+    original = []
+    output = []
+    count, TP, FN, FP, TN = 0, 0, 0, 0, 0
     for row in test_set:
-        estimation = clf.predict(row[1:])
+        estimation = clf.predict([row[1:]])[0]
         real = row[0]
-        print("Real:{} Estimation:{}", real, estimation)
+        original.append(real)
+        output.append(estimation)
+        # print(str.format("Real:{} Estimation:{}", real, estimation))
+        if real == 1 and estimation == 1:
+            TP += 1
+        elif real == 1 and estimation == 0:
+            FN += 1
+        elif real == 0 and estimation == 0:
+            TN += 1
+        elif real == 0 and estimation == 1:
+            FP += 1
+        if real == estimation:
+            count += 1
+    if TP + FN:
+        SE = TP / (TP + FN)
+    else:
+        SE = 0
+    if TN + FP:
+        SP = TN / (TN + FP)
+    else:
+        SP = 0
+    auc = roc_auc_score(original, output)
+    print("SE:", SE)
+    print("SP:", SP)
+    print("Accuracy:", count / len(test_set))
+    print('AUC:', auc)
+
+
+def decisiontree():
+    from sklearn import tree
+    data = read_excel()
+    do_pretreatment(data)
+    regulate(data, (1, 2))
+    train_set, test_set = split_sample(data, 2 / 3)
+    X1 = []
+    Y1 = []
+    for row in train_set:
+        X1.append(row[1:])
+        Y1.append(row[0])
+    clf = tree.DecisionTreeClassifier()
+    clf.fit(X1, Y1)
+    original = []
+    output = []
+    count, TP, FN, FP, TN = 0, 0, 0, 0, 0
+    for row in test_set:
+        estimation = clf.predict([row[1:]])[0]
+        real = row[0]
+        original.append(real)
+        output.append(estimation)
+        # print(str.format("Real:{} Estimation:{}", real, estimation))
+        if real == 1 and estimation == 1:
+            TP += 1
+        elif real == 1 and estimation == 0:
+            FN += 1
+        elif real == 0 and estimation == 0:
+            TN += 1
+        elif real == 0 and estimation == 1:
+            FP += 1
+        if real == estimation:
+            count += 1
+    if TP + FN:
+        SE = TP / (TP + FN)
+    else:
+        SE = 0
+    if TN + FP:
+        SP = TN / (TN + FP)
+    else:
+        SP = 0
+    auc = roc_auc_score(original, output)
+    print("SE:", SE)
+    print("SP:", SP)
+    print("Accuracy:", count / len(test_set))
+    print('AUC:', auc)
 
 
 if __name__ == "__main__":
-    # BPNetwork()
-    svm()
+    BP()
+    # svm()
+    # decisiontree()
