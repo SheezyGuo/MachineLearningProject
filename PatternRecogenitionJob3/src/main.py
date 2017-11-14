@@ -111,7 +111,6 @@ class ChromosomeWidthError(Exception):
 
 class Individual:
     __chromosome_width = len(_selected_cols) - 1  # 基因长度 去除男女标志位
-    chromosome = []
     fitness = 0
 
     def get_chromosome_width(self):
@@ -120,8 +119,10 @@ class Individual:
     def __init__(self, str_crm="000000"):
         if type(str_crm) is not str or len(str_crm) is not self.__chromosome_width:
             raise ChromosomeWidthError("Wrong width num")
+        temp = []
         for c in str_crm:
-            self.chromosome.append(int(c))
+            temp.append(int(c))
+        self.chromosome = temp
 
     def get_random_chromosome(self):
         str_crm = ""
@@ -148,10 +149,11 @@ class Individual:
         mean_boys = m_boys.mean(0)  # m_boys行向量的均值
         mean_girls = m_girls.mean(0)  # m_girls行向量的均值
         mean_all = np.row_stack((m_boys, m_girls)).mean(0)  # 总体行向量的均值
-        Sw = np.zeros((self.__chromosome_width, self.__chromosome_width), 0)
-        Sb = np.zeros((self.__chromosome_width, self.__chromosome_width), 0)
+        used_dight_num = sum(self.chromosome)
+        Sw = np.zeros((used_dight_num, used_dight_num))
+        Sb = np.zeros((used_dight_num, used_dight_num))
         for group, mean in ((m_boys, mean_boys), (m_girls, mean_girls)):
-            temp = np.zeros((self.__chromosome_width, self.__chromosome_width), 0)
+            temp = np.zeros((used_dight_num, used_dight_num))
             for a in group:
                 delta1 = a - mean
                 temp += delta1.T * delta1
@@ -160,7 +162,7 @@ class Individual:
             Sw += 1 / (len(m_boys) + len(m_girls)) * temp
             delta2 = mean - mean_all
             Sb += len(group) / (len(m_boys) + len(m_girls)) * delta2.T * delta2
-        fitness = Sb.trace()[0, 0] / Sw.trace()[0, 0]
+        fitness = Sb.trace() / Sw.trace()
         self.fitness = fitness
         return fitness
 
@@ -171,7 +173,7 @@ class Group:
                          randint(Individual().get_chromosome_width() / 2, Individual().get_chromosome_width() - 1))
     __mutation_probability = 0.001
     __MAX_TURN = 1000
-    __THRESHOLD = 0.1
+    __THRESHOLD = 0.001
 
     def __init__(self, individual_num=10):
         for i in range(individual_num):
@@ -193,11 +195,10 @@ class Group:
         return alive_single
 
     def recombine(self, boys, girls):
-        for igroup in range(len(self._group)):
-            evolution_group = []
-            for i in range(len(self._group[igroup])):
-                evolution_group.append(self._round_select(boys, girls))
-            self._group[igroup] = evolution_group
+        evolution_group = []
+        for i in range(len(self._group)):
+            evolution_group.append(self._round_select(boys, girls))
+        self._group = evolution_group
 
     def crossover(self):
         index = 0
@@ -218,11 +219,11 @@ class Group:
             for digit in range(chromosome_width):
                 r = random()
                 if r < self.__mutation_probability:
-                    self._group[index][digit] = 1 - self._group[index][digit]
+                    self._group[index].chromosome[digit] = 1 - self._group[index].chromosome[digit]
 
     def evolve(self, boys, girls):
         count = 0
-        pre_fitness_list = np.zeros((1, len(self._group)), 0)
+        pre_fitness_list = np.zeros((1, len(self._group)))
         while count < self.__MAX_TURN:
             self.recombine(boys, girls)
             self.crossover()
@@ -232,14 +233,17 @@ class Group:
             delta_list.sort(1)
             delta = sum(delta_list * delta_list.T)[0, 0]
             if delta < self.__THRESHOLD:
+                print("OUT")
                 break
             count += 1
         for i in self._group:
-            print(i.chromosome)
+            print(str.format("{}===>{}", i.chromosome, i.fitness))
 
 
 def main():
     data = read_excel()
+    do_pretreatment(data)
+    regulate(data, (1, 2))
     boys, girls = get_boys_and_girls(data)
     group = Group()
     group.evolve(boys, girls)
