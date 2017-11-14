@@ -171,6 +171,7 @@ class Group:
                          randint(Individual().get_chromosome_width() / 2, Individual().get_chromosome_width() - 1))
     __mutation_probability = 0.001
     __MAX_TURN = 1000
+    __THRESHOLD = 0.1
 
     def __init__(self, individual_num=10):
         for i in range(individual_num):
@@ -228,16 +229,21 @@ class Group:
             self.mutate()
             fitness_list = np.matrix([self._group[i].fitness for i in range(len(self._group))])
             delta_list = fitness_list - pre_fitness_list
-            delta_list.sort()
-            delta = delta_list * delta_list.T
-            if
+            delta_list.sort(1)
+            delta = sum(delta_list * delta_list.T)[0, 0]
+            if delta < self.__THRESHOLD:
+                break
+            count += 1
+        for i in self._group:
+            print(i.chromosome)
 
 
 def main():
     data = read_excel()
     boys, girls = get_boys_and_girls(data)
     group = Group()
+    group.evolve(boys, girls)
 
 
 if __name__ == "__main__":
-    print(Individual().get_chromosome_width())
+    main()
