@@ -1,4 +1,5 @@
-import sklearn
+from sklearn.svm import SVC
+from sklearn.metrics import roc_auc_score
 import numpy as np
 import os
 import xlrd
@@ -244,19 +245,82 @@ class Group:
             if self._group[i].fitness > max_fitness:
                 max_fitness = self._group[i].fitness
                 flag = i
-        print(self._group[flag].chromosome)
+        # print(self._group[flag].chromosome)
+        return self._group[flag].chromosome
 
 
-def main():
+def GA():
     data = read_excel()
     do_pretreatment(data)
-    regulate(data, (1, 2))
+    # regulate(data, (1, 2))
+
+    # for i in range(10):
+    #     print(str.format("#{}: ", str(i)), end="")
+    #     group = Group(20)
+    #     group.evolve(boys, girls)
+
+
+    # GA特征选择
     boys, girls = get_boys_and_girls(data)
-    for i in range(10):
-        print(str.format("#{}: ", str(i)), end="")
-        group = Group(20)
-        group.evolve(boys, girls)
+    group = Group(20)
+    fits_well_chromosome = group.evolve(boys, girls)
+    print(str.format("Chromosome:{}", str.join("", [str(s) for s in fits_well_chromosome])))
+    selected_cols = [0]  # 预先选出男女标志位
+    for i in range(len(fits_well_chromosome)):
+        if fits_well_chromosome[i]:
+            selected_cols.append(i + 1)  # _seleted_cols 第一个元素是男女标志位
+    # print(selected_cols)
+
+    # 用GA特征选择选出的特征来筛选列
+    GAdata = []
+    for row in data:
+        temp = []
+        for i in selected_cols:
+            temp.append(row[i])
+        GAdata.append(temp)
+
+    # SVM训练
+    train_set, test_set = split_sample(GAdata, 2 / 3)
+    X1 = []
+    Y1 = []
+    for row in train_set:
+        X1.append(row[1:])
+        Y1.append(row[0])
+    clf = SVC(kernel='linear')
+    clf.fit(X1, Y1)
+    original = []
+    output = []
+    count, TP, FN, FP, TN = 0, 0, 0, 0, 0
+    for row in test_set:
+        estimation = clf.predict([row[1:]])[0]
+        real = row[0]
+        original.append(real)
+        output.append(estimation)
+        # print(str.format("Real:{} Estimation:{}", real, estimation))
+        if real == 1 and estimation == 1:
+            TP += 1
+        elif real == 1 and estimation == 0:
+            FN += 1
+        elif real == 0 and estimation == 0:
+            TN += 1
+        elif real == 0 and estimation == 1:
+            FP += 1
+        if real == estimation:
+            count += 1
+    if TP + FN:
+        SE = TP / (TP + FN)
+    else:
+        SE = 0
+    if TN + FP:
+        SP = TN / (TN + FP)
+    else:
+        SP = 0
+    auc = roc_auc_score(original, output)
+    print("SE:", SE)
+    print("SP:", SP)
+    print("Accuracy:", count / len(test_set))
+    print('AUC:', auc)
 
 
 if __name__ == "__main__":
-    main()
+    GA()
