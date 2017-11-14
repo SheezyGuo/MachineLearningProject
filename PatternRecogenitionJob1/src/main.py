@@ -9,7 +9,7 @@ from matplotlib import font_manager
 from sklearn.metrics import roc_auc_score
 
 _selected_cols = (1, 3, 4, 6, 7, 8)
-_ncols = _selected_cols.__len__()
+_ncols = len(_selected_cols)
 _ninput = _ncols - 1
 _font_path = r"C:\Windows\Fonts\msyh.ttc"
 _fname = "作业数据_2017And2016.xls"
