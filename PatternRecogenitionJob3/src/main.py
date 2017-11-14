@@ -162,7 +162,7 @@ class Individual:
             Sw += 1 / (len(m_boys) + len(m_girls)) * temp
             delta2 = mean - mean_all
             Sb += len(group) / (len(m_boys) + len(m_girls)) * delta2.T * delta2
-        fitness = Sb.trace() / Sw.trace()
+        fitness = Sb.trace() / (Sw.trace() + 1e-4)  # +1e-4以免分母过小
         self.fitness = fitness
         return fitness
 
@@ -173,7 +173,7 @@ class Group:
                          randint(Individual().get_chromosome_width() / 2, Individual().get_chromosome_width() - 1))
     __mutation_probability = 0.001
     __MAX_TURN = 1000
-    __THRESHOLD = 0.001
+    __THRESHOLD = 1e-6
 
     def __init__(self, individual_num=10):
         for i in range(individual_num):
@@ -185,28 +185,29 @@ class Group:
             fitness_list.append(individual.calculate_fitness(boys, girls))
         fitness_sum = sum(fitness_list)
         probability_list = [x / fitness_sum for x in fitness_list]
-        p = random()
-        count = 0
-        while p > 0:
-            p -= probability_list[count]
-            count += 1
-        count -= 1
-        alive_single = self._group[count]
-        return alive_single
+        new_group = []
+        for i in range(len(self._group)):
+            p = random()
+            count = 0
+            while p > 0:
+                p -= probability_list[count]
+                count += 1
+            count -= 1
+            new_group.append(self._group[count])
+        return new_group
 
     def recombine(self, boys, girls):
-        evolution_group = []
-        for i in range(len(self._group)):
-            evolution_group.append(self._round_select(boys, girls))
+        evolution_group = self._round_select(boys, girls)
         self._group = evolution_group
 
     def crossover(self):
         index = 0
         while index < len(self._group):
-            # recombine_digit=(randint(0, Individual().get_chromosome_width() / 2),
-            #  randint(Individual().get_chromosome_width() / 2, Individual().get_chromosome_width() - 1))
+            recombine_digit = (randint(0, Individual().get_chromosome_width() / 2),
+                               randint(Individual().get_chromosome_width() / 2,
+                                       Individual().get_chromosome_width() - 1))
             # 上面的代码实现交换位随机
-            recombine_digit = self.__recombine_digit
+            # recombine_digit = self.__recombine_digit
             for digit in recombine_digit:
                 temp = self._group[index].chromosome[digit]
                 self._group[index].chromosome[digit] = self._group[index + 1].chromosome[digit]
@@ -233,11 +234,17 @@ class Group:
             delta_list.sort(1)
             delta = sum(delta_list * delta_list.T)[0, 0]
             if delta < self.__THRESHOLD:
-                print("OUT")
+                # print("OUT")
                 break
+            pre_fitness_list = fitness_list
             count += 1
-        for i in self._group:
-            print(str.format("{}===>{}", i.chromosome, i.fitness))
+        max_fitness = -1
+        flag = 0
+        for i in range(len(self._group)):
+            if self._group[i].fitness > max_fitness:
+                max_fitness = self._group[i].fitness
+                flag = i
+        print(self._group[flag].chromosome)
 
 
 def main():
@@ -245,8 +252,10 @@ def main():
     do_pretreatment(data)
     regulate(data, (1, 2))
     boys, girls = get_boys_and_girls(data)
-    group = Group()
-    group.evolve(boys, girls)
+    for i in range(10):
+        print(str.format("#{}: ", str(i)), end="")
+        group = Group(20)
+        group.evolve(boys, girls)
 
 
 if __name__ == "__main__":
