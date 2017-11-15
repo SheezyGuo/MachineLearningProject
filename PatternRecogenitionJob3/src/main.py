@@ -96,11 +96,11 @@ def split_sample(data, ratio):
     for i in range(n):
         index = randint(0, len(boys) - 1)
         train_set.append(boys[index])
-        boys.remove(boys[index])
+        boys.pop(index)
     for i in range(m):
         index = randint(0, len(girls) - 1)
         train_set.append(girls[index])
-        girls.remove(girls[index])
+        girls.pop(index)
     test_set.extend(boys)
     test_set.extend(girls)
     return train_set, test_set
@@ -322,5 +322,66 @@ def GA():
     print('AUC:', auc)
 
 
+def PCA():
+    import matplotlib.pyplot as plt
+    from sklearn.decomposition import PCA
+    from mpl_toolkits.mplot3d import Axes3D
+    data = read_excel()
+    do_pretreatment(data)
+    lable = []
+    for row in data:
+        lable.append(row.pop(0))
+    pca = PCA(n_components=3)
+    pca.fit(data)
+    # print(pca.explained_variance_ratio_)
+    # print(pca.explained_variance_)
+    newdata = pca.transform(data)
+    # fig = plt.figure()
+    # ax = Axes3D(fig, rect=[0, 0, 1, 1], elev=30, azim=20)
+    # plt.scatter(newdata[:, 0], newdata[:, 1], newdata[:, 2], marker='o')
+    # plt.show()
+    clf = SVC(kernel='linear')
+    clf.fit(newdata, lable)
+    SVMDdata = []
+    for i in range(len(newdata)):
+        temp = []
+        temp.append(lable[i])
+        temp.extend(newdata[i])
+        SVMDdata.append(temp)
+    train_set, test_set = split_sample(SVMDdata, 2 / 3)
+    original = []
+    output = []
+    count, TP, FN, FP, TN = 0, 0, 0, 0, 0
+    for row in test_set:
+        estimation = clf.predict([row[1:]])[0]
+        real = row[0]
+        original.append(real)
+        output.append(estimation)
+        # print(str.format("Real:{} Estimation:{}", real, estimation))
+        if real == 1 and estimation == 1:
+            TP += 1
+        elif real == 1 and estimation == 0:
+            FN += 1
+        elif real == 0 and estimation == 0:
+            TN += 1
+        elif real == 0 and estimation == 1:
+            FP += 1
+        if real == estimation:
+            count += 1
+    if TP + FN:
+        SE = TP / (TP + FN)
+    else:
+        SE = 0
+    if TN + FP:
+        SP = TN / (TN + FP)
+    else:
+        SP = 0
+    auc = roc_auc_score(original, output)
+    print("SE:", SE)
+    print("SP:", SP)
+    print("Accuracy:", count / len(test_set))
+    print('AUC:', auc)
+
+
 if __name__ == "__main__":
-    GA()
+    PCA()
